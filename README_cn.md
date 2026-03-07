@@ -76,4 +76,3 @@ papertail logs --hours 24 --db logs.db --tsv logs.tsv
 ## 依赖
 
 - **7z**: 解压 `.tsv.gz` 文件 (`sudo apt-get install p7zip-full`)
-- **sqlite-utils**: 导入 SQLite (`pip install sqlite-utils`)

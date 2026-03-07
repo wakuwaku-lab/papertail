@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
+	_ "modernc.org/sqlite"
 )
 
 var papertrailToken string
@@ -85,7 +87,7 @@ func runLogs(cmd *cobra.Command, args []string) {
 		log.Fatalf("Error downloading logs: %v", err)
 	}
 
-	if dbPath != "" && fileExists(dbPath) {
+	if dbPath != "" {
 		if err := importToSQLite(dbPath, tsvPath); err != nil {
 			log.Printf("Warning: Failed to import to SQLite: %v", err)
 		}
@@ -365,11 +367,81 @@ func extractToFile(archivePath string, output *os.File) error {
 }
 
 func importToSQLite(dbPath, tsvPath string) error {
-	cmd := exec.Command("sqlite-utils", "upsert", dbPath, "heroku-logs", "--pk=id", "--alter", "--tsv", tsvPath)
-	output, err := cmd.CombinedOutput()
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return fmt.Errorf("sqlite-utils error: %w - %s", err, string(output))
+		return fmt.Errorf("failed to open sqlite database: %w", err)
 	}
+	defer db.Close()
+
+	// Ensure table exists
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS "heroku-logs" (
+		id INTEGER PRIMARY KEY,
+		generated_at TEXT,
+		received_at TEXT,
+		source_id TEXT,
+		source_name TEXT,
+		source_ip TEXT,
+		facility_name TEXT,
+		severity_name TEXT,
+		program TEXT,
+		message TEXT
+	)`)
+	if err != nil {
+		return fmt.Errorf("failed to create table: %w", err)
+	}
+
+	file, err := os.Open(tsvPath)
+	if err != nil {
+		return fmt.Errorf("failed to open tsv file: %w", err)
+	}
+	defer file.Close()
+
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`INSERT OR REPLACE INTO "heroku-logs" (
+		id, generated_at, received_at, source_id, source_name, source_ip,
+		facility_name, severity_name, program, message
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	scanner := bufio.NewScanner(file)
+	isHeader := true
+	for scanner.Scan() {
+		if isHeader {
+			isHeader = false
+			continue
+		}
+		line := scanner.Text()
+		parts := strings.Split(line, "\t")
+		if len(parts) < 10 {
+			continue
+		}
+
+		args := make([]interface{}, 10)
+		for i := 0; i < 10; i++ {
+			args[i] = parts[i]
+		}
+
+		if _, err := stmt.Exec(args...); err != nil {
+			return fmt.Errorf("failed to insert row: %w", err)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading tsv file: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	fmt.Println("Imported to SQLite:", dbPath)
 	return nil
 }
@@ -378,3 +450,4 @@ func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
+

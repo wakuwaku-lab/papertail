@@ -85,9 +85,3 @@ papertail logs --hours 24 --db logs.db --tsv logs.tsv
   ```bash
   sudo apt-get install p7zip-full
   ```
-
-* **sqlite-utils**: SQLite へのインポートに使用
-
-  ```bash
-  pip install sqlite-utils
-  ```
