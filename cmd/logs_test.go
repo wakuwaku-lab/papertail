@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"compress/gzip"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -82,5 +83,51 @@ func TestImportToSQLite(t *testing.T) {
 
 	if message != "Login failed - RETRY" {
 		t.Errorf("Expected 'Login failed - RETRY' after upsert, got '%s'", message)
+	}
+}
+
+func TestExtractToFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "papertail-gzip-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	content := "test content for gzip"
+	gzipPath := filepath.Join(tmpDir, "test.gz")
+	outputPath := filepath.Join(tmpDir, "output.txt")
+
+	// Create gzip file
+	f, err := os.Create(gzipPath)
+	if err != nil {
+		t.Fatalf("Failed to create gzip file: %v", err)
+	}
+	gw := gzip.NewWriter(f)
+	if _, err := gw.Write([]byte(content)); err != nil {
+		t.Fatalf("Failed to write to gzip: %v", err)
+	}
+	gw.Close()
+	f.Close()
+
+	// Extract
+	outF, err := os.Create(outputPath)
+	if err != nil {
+		t.Fatalf("Failed to create output file: %v", err)
+	}
+	defer outF.Close()
+
+	if err := extractToFile(gzipPath, outF); err != nil {
+		t.Fatalf("extractToFile failed: %v", err)
+	}
+	outF.Close()
+
+	// Verify
+	extracted, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("Failed to read extracted file: %v", err)
+	}
+
+	if string(extracted) != content {
+		t.Errorf("Expected '%s', got '%s'", content, string(extracted))
 	}
 }

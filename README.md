@@ -78,14 +78,6 @@ papertail logs --start 2024-03-01 --end 2024-03-07 --tsv output.tsv
 papertail logs --hours 24 --db logs.db --tsv logs.tsv
 ```
 
-## Dependencies
-
-* **7z**: Used to extract `.tsv.gz` files
-
-  ```bash
-  sudo apt-get install p7zip-full
-  ```
-
 ---
 
 **Author:** [exia.huang](https://github.com/exiahuang)  

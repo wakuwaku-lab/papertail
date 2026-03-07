@@ -73,6 +73,3 @@ papertail logs --start 2024-03-01 --end 2024-03-07 --tsv output.tsv
 papertail logs --hours 24 --db logs.db --tsv logs.tsv
 ```
 
-## 依赖
-
-- **7z**: 解压 `.tsv.gz` 文件 (`sudo apt-get install p7zip-full`)

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"compress/gzip"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -339,32 +339,22 @@ func downloadAndExtract(client *http.Client, dateStr, tmpDir string, output *os.
 }
 
 func extractToFile(archivePath string, output *os.File) error {
-	cmd := exec.Command("7z", "x", "-so", archivePath)
-	cmd.Stderr = os.Stderr
-
-	pr, pw := io.Pipe()
-	cmd.Stdout = pw
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start 7z: %w", err)
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return err
 	}
+	defer f.Close()
 
-	scanner := bufio.NewScanner(pr)
-	for scanner.Scan() {
-		if _, err := output.WriteString(scanner.Text() + "\n"); err != nil {
-			pw.Close()
-			return err
-		}
+	gr, err := gzip.NewReader(f)
+	if err != nil {
+		return err
 	}
+	defer gr.Close()
 
-	pw.Close()
-	if err := cmd.Wait(); err != nil {
-		if !strings.Contains(err.Error(), "No files to process") {
-			return err
-		}
-	}
-	return nil
+	_, err = io.Copy(output, gr)
+	return err
 }
+
 
 func importToSQLite(dbPath, tsvPath string) error {
 	db, err := sql.Open("sqlite", dbPath)

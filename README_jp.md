@@ -78,10 +78,3 @@ papertail logs --start 2024-03-01 --end 2024-03-07 --tsv output.tsv
 papertail logs --hours 24 --db logs.db --tsv logs.tsv
 ```
 
-## 依存関係
-
-* **7z**: `.tsv.gz` ファイルの解凍に使用
-
-  ```bash
-  sudo apt-get install p7zip-full
-  ```
